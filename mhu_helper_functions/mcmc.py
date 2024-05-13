@@ -255,6 +255,79 @@ class gpCNKernel:
 def plot_trace(q, *args, **kwargs):
     plt.plot(q, "*", *args, **kwargs)
     plt.title("Trace plot")
+    plt.xlabel("samples")
+
+
+def plot_hist(q, **kwargs):
+    sns.histplot(q, kde=False, bins=20, stat="density", **kwargs)
+    mu, std = norm.fit(q)
+    x = np.linspace(q.min(), q.max(), 100)
+    p = norm.pdf(x, mu, std)
+    plt.plot(x, p, "k", linewidth=1)
+    plt.title("Histogram")
+
+
+def plot_autocorrelation(q, max_lag=300, **kwargs):
+    IAT, lags, acorrs = integratedAutocorrelationTime(q, max_lag=max_lag)
+    plt.plot(lags, acorrs, "-", **kwargs)
+    plt.title("Autocorrelation")
+    plt.ylim([0.0, 1.0])
+    print(f"Autocorrelation, IAT = {IAT:.2f}")
+
+
+class pCNKernel:
+    """hippylib.mcmc.kernels"""
+
+    def __init__(
+        self,
+        misfit_cost: Callable[[np.ndarray], float],
+        nu: GaussianPrior,
+        s: float = 0.1,
+    ):
+        """Create a gpCN kernel with posterior and approximated posterior infromation.
+
+        Args:
+            misfit_cost (Callable[[np.ndarray], float]): The negative log-likelihood, i.e. the misfit cost.
+            nu (GaussianPrior): Prior.
+            s (float): update rate
+        """
+        self.misfit_cost = misfit_cost
+        self.nu = nu
+        self.s = s
+
+    def init_sample(self, sample: SampleStruct):
+        sample.cost = self.misfit_cost(sample.m)
+
+    def sample(self, current: SampleStruct, proposed: SampleStruct) -> bool:
+        proposed.m = self.proposal(current.m)
+        self.init_sample(proposed)
+        alpha = current.cost - proposed.cost
+        if alpha > np.log(np.random.rand()):
+            current.assign(proposed)
+            return True
+        else:
+            return False
+
+    def proposal(self, m: np.ndarray) -> np.ndarray:
+        # Generate sample from the approximated posterior
+        w = self.nu.sample(add_mean=False)
+        # do pCN linear combination with current sample
+        return (
+            self.s * w
+            + np.sqrt(1.0 - self.s * self.s) * (m - self.nu.mean)
+            + self.nu.mean
+        )
+
+    def consume_random(self):
+        np.random.randn(self.nu.sqrtRinv.shape[1])
+        np.random.rand()
+
+
+# Analysis of samples
+def plot_trace(q, *args, **kwargs):
+    plt.plot(q, "*", *args, **kwargs)
+    plt.title("Trace plot")
+    plt.xlabel("samples")
 
 
 def plot_hist(q, **kwargs):
