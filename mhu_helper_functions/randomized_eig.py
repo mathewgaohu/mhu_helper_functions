@@ -17,6 +17,7 @@ hippylib: https://hippylib.readthedocs.io/en/latest/index.html
 """
 
 import numpy as np
+import scipy.linalg as scila
 import scipy.sparse.linalg as spla
 
 
@@ -49,12 +50,12 @@ def reigsh(
     if single_pass:
         Z = Omega.T @ Q
         W = Y.T @ Q
-        T = np.linalg.solve(Z, W)
+        T = scila.solve(Z, W, overwrite_a=True, overwrite_b=True)
         T = 0.5 * T + 0.5 * T.T  # T \approx Q^T A Q
     else:
         T = Q.T @ (A * Q)
 
-    d, V = np.linalg.eigh(T)
+    d, V = scila.eigh(T, overwrite_a=True)
     sort_perm = d.argsort()[::-1]
     d = d[sort_perm[:k]]
     V = V[:, sort_perm[:k]]
@@ -85,10 +86,10 @@ def reigsh_from_computed_actions(
 
     Z = Omega.T @ Q
     W = Y.T @ Q
-    T = np.linalg.solve(Z, W)
+    T = scila.solve(Z, W, overwrite_a=True, overwrite_b=True)
     T = 0.5 * T + 0.5 * T.T
 
-    d, V = np.linalg.eigh(T)
+    d, V = scila.eigh(T, overwrite_a=True)
     sort_perm = d.argsort()[::-1]
     d = d[sort_perm[:k]]
     V = V[:, sort_perm[:k]]
