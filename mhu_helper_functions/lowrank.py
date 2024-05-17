@@ -9,7 +9,7 @@ from scipy.sparse.linalg._interface import IdentityOperator
 def LowRankOperator(
     d: np.ndarray,
     U: np.ndarray,
-    B: spla.LinearOperator | np.ndarray = None,
+    B=None,
 ) -> spla.LinearOperator:
     """The low rank approximation based on generalized eigenpairs.
 
@@ -43,7 +43,7 @@ def LowRankOperator(
 def LowRankInvOperator(
     d: np.ndarray,
     U: np.ndarray,
-    Binv: spla.LinearOperator | np.ndarray = None,
+    Binv=None,
 ) -> spla.LinearOperator:
     """The low rank approximation to inversion based on generalized eigenpairs.
 
@@ -77,8 +77,8 @@ def LowRankInvOperator(
 def LowRankSqrtInvOperator(
     d: np.ndarray,
     U: np.ndarray,
-    B: spla.LinearOperator | np.ndarray = None,
-    sqrtBinv: spla.LinearOperator | np.ndarray = None,
+    B=None,
+    sqrtBinv=None,
 ) -> spla.LinearOperator:
     """The low rank approximation to inverse sqrt based on generalized eigenpairs.
 
