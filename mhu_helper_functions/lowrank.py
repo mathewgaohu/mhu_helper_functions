@@ -1,3 +1,5 @@
+"""Build low-rank approximation to the operator, inversion, and inverse sqrt from computed generalized eigenpairs."""
+
 import numpy as np
 import scipy.sparse.linalg as spla
 from scipy import sparse
@@ -7,13 +9,31 @@ from scipy.sparse.linalg._interface import IdentityOperator
 def LowRankOperator(
     d: np.ndarray,
     U: np.ndarray,
-    B,
+    B: spla.LinearOperator | np.ndarray = None,
 ) -> spla.LinearOperator:
-    """d, U = eigsh(A - B, B) (generalized eigenvalues)"""
+    """The low rank approximation based on generalized eigenpairs.
+
+            (A-B) u_i = d_i B u_i,
+
+    i.e. (A-B)U = BUD, and U^* BU=I
+
+    For example, d, U = scipy.sparse.linalg.eigsh(A - B, B),
+
+    Args:
+        d: 1D array of the leading eigenvalues
+        U: 2D array of the leading eigenvectors
+        B: the base operator
+
+    Returns:
+        LinearOperator: the low rank approximation of the operator A
+
+    """
     # Convert to linear operators
+    n, r = U.shape
     D = spla.aslinearoperator(sparse.diags(d))
     U = spla.aslinearoperator(U)
-    B = spla.aslinearoperator(B)
+    I = IdentityOperator((n, n), U.dtype)
+    B = I if B is None else spla.aslinearoperator(B)
 
     # get required operators
     A = B * U * D * U.H * B + B
@@ -23,13 +43,31 @@ def LowRankOperator(
 def LowRankInvOperator(
     d: np.ndarray,
     U: np.ndarray,
-    Binv,
+    Binv: spla.LinearOperator | np.ndarray = None,
 ) -> spla.LinearOperator:
-    """d, U = eigsh(A - B, B) (generalized eigenvalues)"""
+    """The low rank approximation to inversion based on generalized eigenpairs.
+
+            (A-B) u_i = d_i B u_i,
+
+    i.e. (A-B)U = BUD, and U^* BU=I
+
+    For example, d, U = scipy.sparse.linalg.eigsh(A - B, B),
+
+    Args:
+        d: 1D array of the leading eigenvalues
+        U: 2D array of the leading eigenvectors
+        Binv: the base operator's inversion
+
+    Returns:
+        LinearOperator: the low rank approximation of the operator A's inversion.
+
+    """
     # Convert to linear operators
+    n, r = U.shape
     Dsol = spla.aslinearoperator(sparse.diags(d / (d + 1.0)))
     U = spla.aslinearoperator(U)
-    Binv = spla.aslinearoperator(Binv)
+    I = IdentityOperator((n, n), U.dtype)
+    Binv = I if Binv is None else spla.aslinearoperator(Binv)
 
     # get required operators
     Ainv = Binv - U * Dsol * U.H
@@ -39,16 +77,36 @@ def LowRankInvOperator(
 def LowRankSqrtInvOperator(
     d: np.ndarray,
     U: np.ndarray,
-    B,
-    sqrtBinv,
+    B: spla.LinearOperator | np.ndarray = None,
+    sqrtBinv: spla.LinearOperator | np.ndarray = None,
 ) -> spla.LinearOperator:
-    """d, U = eigsh(A - B, B) (generalized eigenvalues)"""
+    """The low rank approximation to inverse sqrt based on generalized eigenpairs.
+
+            (A-B) u_i = d_i B u_i,
+
+    i.e. (A-B)U = BUD, and U^* BU=I
+
+    For example, d, U = scipy.sparse.linalg.eigsh(A - B, B),
+
+    The inverse sqrt of an operator is defined as sqrtAinv * sqrtAinv.H = Ainv
+
+    Args:
+        d: 1D array of the leading eigenvalues
+        U: 2D array of the leading eigenvectors
+        B: the base operator
+        sqrtBinv: the base operator's inverse sqrt
+
+    Returns:
+        LinearOperator: the low rank approximation of the operator A's inverse sqrt
+
+    """
     # Convert to linear operators
+    n, r = U.shape
     S = spla.aslinearoperator(sparse.diags(1.0 - (1.0 + d) ** (-0.5)))
     U = spla.aslinearoperator(U)
-    B = spla.aslinearoperator(B)
-    sqrtBinv = spla.aslinearoperator(sqrtBinv)
-    I = IdentityOperator(dtype=B.dtype, shape=B.shape)
+    I = IdentityOperator((n, n), U.dtype)
+    B = I if B is None else spla.aslinearoperator(B)
+    sqrtBinv = I if sqrtBinv is None else spla.aslinearoperator(sqrtBinv)
 
     # get required operators
     sqrtAinv = (I - U * S * U.H * B) * sqrtBinv
