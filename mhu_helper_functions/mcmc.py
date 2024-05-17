@@ -181,6 +181,40 @@ class FullTracer:
         return n
 
 
+class FullTracerSmallMemory(FullTracer):
+    """A tracer with checkpoints and small memory"""
+
+    def __init__(
+        self,
+        nsamples: int,
+        dim: int,
+        checkpoint_interval: int,
+        checkpoint_path: str,
+        load_existing: bool = True,
+    ):
+        self.nsamples = nsamples
+        self.dim = dim
+        self.interval = checkpoint_interval
+        self.path = checkpoint_path
+        os.makedirs(self.path, exist_ok=True)
+
+        self.i: int = 0
+        self.data: np.ndarray = np.zeros((self.interval, self.dim), dtype=float)
+
+        if load_existing:
+            self.i = self.search_for_existing()
+
+    def append(self, current: SampleStruct, q):
+        self.data[self.i % self.interval, :] = current.m
+        self.i += 1
+
+        if self.i % self.interval == 0:
+            sta = self.i - self.interval
+            end = self.i
+            np.save(self._file_path(sta), self.data)
+            self.data[:] = 0.0
+
+
 class GaussianPrior:
 
     def __init__(self, R, sqrtRinv, mean):
