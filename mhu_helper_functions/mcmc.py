@@ -101,8 +101,8 @@ class MCMC:
         pbar.close()  # Close pqdm progress bar
         return naccept
 
-    def consume_random(self):
-        for ii in range(self.nsamples + self.nburnin):
+    def consume_random(self, nsamples):
+        for ii in range(nsamples):
             self.kernel.consume_random()
 
 
@@ -177,7 +177,6 @@ class FullTracer:
                 n += self.interval
             else:
                 break
-        print(f"Found {n} existing samples.")
         return n
 
 
@@ -213,6 +212,11 @@ class FullTracerSmallMemory(FullTracer):
             end = self.i
             np.save(self._file_path(sta), self.data)
             self.data[:] = 0.0
+
+    def load_existing(self, nsamples: int) -> int:
+        self.i = nsamples
+        print(f"Load {self.i} existing samples.")
+        return self.i
 
 
 class GaussianPrior:
@@ -281,6 +285,7 @@ class gpCNKernel:
         )
 
     def consume_random(self):
+        # assuming that applying sqrtRinv doesn't involve random.
         np.random.randn(self.nu.sqrtRinv.shape[1])
         np.random.rand()
 
@@ -353,6 +358,7 @@ class pCNKernel:
         )
 
     def consume_random(self):
+        # assuming that applying sqrtRinv doesn't involve random.
         np.random.randn(self.nu.sqrtRinv.shape[1])
         np.random.rand()
 
