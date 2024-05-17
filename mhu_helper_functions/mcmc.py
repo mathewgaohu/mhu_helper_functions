@@ -204,7 +204,7 @@ class FullTracerSmallMemory(FullTracer):
         self.data: np.ndarray = np.zeros((self.interval, self.dim), dtype=float)
 
         if load_existing:
-            self.i = self.search_for_existing()
+            self.load_existing(self.search_for_existing())
 
     def append(self, current: SampleStruct, q):
         self.data[self.i % self.interval, :] = current.m
