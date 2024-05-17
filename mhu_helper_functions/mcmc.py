@@ -101,7 +101,7 @@ class MCMC:
         pbar.close()  # Close pqdm progress bar
         return naccept
 
-    def consume_random(self, nsamples):
+    def consume_random(self, nsamples: int):
         for ii in range(nsamples):
             self.kernel.consume_random()
 
@@ -179,6 +179,9 @@ class FullTracer:
                 break
         return n
 
+    def load(self, i: int) -> np.ndarray:
+        return self.data[i]
+
 
 class FullTracerSmallMemory(FullTracer):
     """A tracer with checkpoints and small memory"""
@@ -217,6 +220,11 @@ class FullTracerSmallMemory(FullTracer):
         self.i = nsamples
         print(f"Load {self.i} existing samples.")
         return self.i
+
+    def load(self, i: int) -> np.ndarray:
+        path = self._file_path(i // self.interval * self.interval)
+        data = np.load(path)
+        return data[i % self.interval]
 
 
 class GaussianPrior:
