@@ -32,7 +32,7 @@ class SampleStruct:
 class MCMC:
     def __init__(
         self,
-        kernel: gpCNKernel,
+        kernel: Kernel,
         nsamples: int = 2000,
         nburnin: int = 0,
         ncheck: int = 100,
@@ -59,11 +59,13 @@ class MCMC:
         if tracer is None:
             tracer = NullTracer()
 
+        # Initial samples
         current = SampleStruct()
         proposed = SampleStruct()
         current.m = m0.copy()
         self.kernel.init_sample(current)
 
+        # Burn-in
         if self.print_level > 0:
             print(f"Burn {self.nburnin} samples.")
         sample_count = 0
@@ -79,26 +81,61 @@ class MCMC:
                     )
                 )
 
+        # Main sampling
         if self.print_level > 0:
             print(f"Generate {self.nsamples} samples")
         sample_count = 0
-        pbar = tqdm(total=self.nsamples)  # Add tqdm progress bar
         naccept = 0
-        while sample_count < self.nsamples:
-            naccept += self.kernel.sample(current, proposed)
-            q = qoi.eval(current)
-            tracer.append(current, q)
-            sample_count += 1
-            if sample_count % self.ncheck == 0:
-                pbar.update(self.ncheck)
-                if self.print_level > 0:
-                    print(
-                        "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(
-                            float(sample_count) / float(self.nsamples) * 100,
-                            float(naccept) / float(sample_count) * 100,
+        with tqdm(total=self.nsamples) as pbar:
+            while sample_count < self.nsamples:
+                naccept += self.kernel.sample(current, proposed)
+                q = qoi.eval(current)
+                tracer.append(current, q)
+                sample_count += 1
+                if sample_count % self.ncheck == 0:
+                    pbar.update(self.ncheck)
+                    if self.print_level > 0:
+                        print(
+                            "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(
+                                float(sample_count) / float(self.nsamples) * 100,
+                                float(naccept) / float(sample_count) * 100,
+                            )
                         )
-                    )
-        pbar.close()  # Close pqdm progress bar
+        return naccept
+
+    def resume(self, m0: np.ndarray, resume_index: int, qoi=None, tracer=None):
+        assert resume_index > 0
+        if qoi is None:
+            qoi = NullQoi()
+        if tracer is None:
+            tracer = NullTracer()
+
+        # Initial samples
+        current = SampleStruct()
+        proposed = SampleStruct()
+        current.m = m0.copy()
+        self.kernel.init_sample(current)
+
+        # Main sampling
+        if self.print_level > 0:
+            print(f"Generate {self.nsamples} samples. Resume from No.{resume_index}")
+        sample_count = 0
+        naccept = 0
+        with tqdm(total=self.nsamples, initial=resume_index) as pbar:
+            while resume_index + sample_count < self.nsamples:
+                naccept += self.kernel.sample(current, proposed)
+                q = qoi.eval(current)
+                tracer.append(current, q)
+                sample_count += 1
+                if (resume_index + sample_count) % self.ncheck == 0:
+                    pbar.update(self.ncheck)
+                    if self.print_level > 0:
+                        print(
+                            "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(
+                                float(sample_count) / float(self.nsamples) * 100,
+                                float(naccept) / float(sample_count) * 100,
+                            )
+                        )
         return naccept
 
     def consume_random(self, nsamples: int):
@@ -246,7 +283,21 @@ class GaussianPrior:
             return self.sqrtRinv * noise
 
 
-class gpCNKernel:
+class Kernel:
+    def init_sample(self, sample: SampleStruct):
+        raise NotImplementedError()
+
+    def sample(self, current: SampleStruct, proposed: SampleStruct) -> bool:
+        raise NotImplementedError()
+
+    def proposal(self, m: np.ndarray) -> np.ndarray:
+        raise NotImplementedError()
+
+    def consume_random(self):
+        raise NotImplementedError()
+
+
+class gpCNKernel(Kernel):
     """hippylib.mcmc.kernels"""
 
     def __init__(
@@ -298,31 +349,7 @@ class gpCNKernel:
         np.random.rand()
 
 
-# Analysis of samples
-def plot_trace(q, *args, **kwargs):
-    plt.plot(q, "*", *args, **kwargs)
-    plt.title("Trace plot")
-    plt.xlabel("samples")
-
-
-def plot_hist(q, **kwargs):
-    sns.histplot(q, kde=False, bins=20, stat="density", **kwargs)
-    mu, std = norm.fit(q)
-    x = np.linspace(q.min(), q.max(), 100)
-    p = norm.pdf(x, mu, std)
-    plt.plot(x, p, "k", linewidth=1)
-    plt.title("Histogram")
-
-
-def plot_autocorrelation(q, max_lag=300, **kwargs):
-    IAT, lags, acorrs = integratedAutocorrelationTime(q, max_lag=max_lag)
-    plt.plot(lags, acorrs, "-", **kwargs)
-    plt.title("Autocorrelation")
-    plt.ylim([0.0, 1.0])
-    print(f"Autocorrelation, IAT = {IAT:.2f}")
-
-
-class pCNKernel:
+class pCNKernel(Kernel):
     """hippylib.mcmc.kernels"""
 
     def __init__(
