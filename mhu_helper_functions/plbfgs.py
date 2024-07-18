@@ -8,7 +8,7 @@ from enum import Enum
 
 import numpy as np
 
-# import scipy.optimize.linesearch as ls
+# import scipy.optimize._linesearch as ls
 import scipy.sparse.linalg as spla
 from scipy.optimize import line_search
 
