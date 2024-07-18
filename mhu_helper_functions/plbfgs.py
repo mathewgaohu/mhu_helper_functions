@@ -8,9 +8,9 @@ from enum import Enum
 
 import numpy as np
 
-# from scipy.optimize import line_search
-import scipy.optimize.linesearch as ls
+# import scipy.optimize.linesearch as ls
 import scipy.sparse.linalg as spla
+from scipy.optimize import line_search
 
 VecType = typ.TypeVar("VecType")
 
@@ -34,11 +34,11 @@ def plbfgs(
     """Computes argmin_x cost(x) via L-BFGS,
     with option for a user-supplied initial inverse Hessian approximation.
 
-    checkpoint_options: 
+    checkpoint_options:
         - "path": str
         - "save_function": Callable[[str, VecType], None]
     """
-    # Settings 
+    # Settings
     if checkpoint_options:
         log_path = checkpoint_options["path"]
 
@@ -78,7 +78,7 @@ def plbfgs(
             deque(),
             deque(),
             inv_hess0,
-            print_level=print_level-1,
+            print_level=print_level - 1,
             **inv_hess_options,
         )
     else:
@@ -87,7 +87,7 @@ def plbfgs(
             deque(),
             deque(),
             None,
-            print_level=print_level-1,
+            print_level=print_level - 1,
             **inv_hess_options,
         )
 
@@ -169,7 +169,7 @@ def plbfgs(
                     deque(),
                     deque(),
                     inv_hess0,
-                    print_level=print_level-1,
+                    print_level=print_level - 1,
                     **inv_hess_options,
                 )
 
@@ -229,7 +229,6 @@ def plbfgs(
         cost_count_history.append(num_cost_evals)
         grad_count_history.append(num_grad_evals)
         __display_iter_info()
-
 
     if print_level > 0:
         print("LBFGS done.")
@@ -299,7 +298,7 @@ class LbfgsInverseHessianApproximation:
     print_level: int = 1
     high_pass_filter: spla.LinearOperator = None
     gamma_type: int = 2
-    initial_gamma: float = 1.
+    initial_gamma: float = 1.0
 
     def __post_init__(self) -> None:
         assert self.m >= 0
@@ -439,14 +438,18 @@ def _componentwise_inverse(x):
 
 
 def _line_search(cost, grad, x, p, g, f, old_old_fval, **kwargs):
-    def cost_1D(s):
-        return cost(_add(x, _componentwise_scalar_mult(p, s)))
-
-    def grad_1D(s):
-        return _inner_product(p, grad(_add(x, _componentwise_scalar_mult(p, s))))
-
-    g0 = _inner_product(p, g)
-    stp, fval, old_fval = ls.scalar_search_wolfe1(
-        cost_1D, grad_1D, f, old_old_fval, g0, **kwargs
+    alpha, fc, gc, new_fval, old_fval, new_slopp = line_search(
+        cost, grad, x, p, g, f, old_old_fval, **kwargs
     )
-    return stp, fval
+    return alpha, new_fval
+    # def cost_1D(s):
+    #     return cost(_add(x, _componentwise_scalar_mult(p, s)))
+
+    # def grad_1D(s):
+    #     return _inner_product(p, grad(_add(x, _componentwise_scalar_mult(p, s))))
+
+    # g0 = _inner_product(p, g)
+    # stp, fval, old_fval = ls.scalar_search_wolfe1(
+    #     cost_1D, grad_1D, f, old_old_fval, g0, **kwargs
+    # )
+    # return stp, fval
