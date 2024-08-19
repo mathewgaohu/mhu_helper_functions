@@ -8,7 +8,7 @@ from enum import Enum
 
 import numpy as np
 
-# import scipy.optimize._linesearch as ls
+import scipy.optimize._linesearch as ls
 import scipy.sparse.linalg as spla
 from scipy.optimize import line_search
 
@@ -438,10 +438,15 @@ def _componentwise_inverse(x):
 
 
 def _line_search(cost, grad, x, p, g, f, old_old_fval, **kwargs):
-    alpha, fc, gc, new_fval, old_fval, new_slopp = line_search(
+    # alpha, fc, gc, new_fval, old_fval, new_slopp = line_search(
+    #     cost, grad, x, p, g, f, old_old_fval, **kwargs
+    # )
+    # return alpha, new_fval
+    alpha, fc, gc, new_fval, old_fval, new_slopp = ls.line_search_wolfe1(
         cost, grad, x, p, g, f, old_old_fval, **kwargs
     )
     return alpha, new_fval
+
     # def cost_1D(s):
     #     return cost(_add(x, _componentwise_scalar_mult(p, s)))
 
