@@ -92,15 +92,10 @@ class MCMC:
                 q = qoi.eval(current)
                 tracer.append(current, q)
                 sample_count += 1
+                pbar.update()
                 if sample_count % self.ncheck == 0:
-                    pbar.update(self.ncheck)
                     if self.print_level > 0:
-                        print(
-                            "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(
-                                float(sample_count) / float(self.nsamples) * 100,
-                                float(naccept) / float(sample_count) * 100,
-                            )
-                        )
+                        print(f"{sample_count} completed, Acceptance ratio {naccept / sample_count * 100:.1f} %")
         return naccept
 
     def resume(self, m0: np.ndarray, resume_index: int, qoi=None, tracer=None):
@@ -127,15 +122,10 @@ class MCMC:
                 q = qoi.eval(current)
                 tracer.append(current, q)
                 sample_count += 1
+                pbar.update()
                 if (resume_index + sample_count) % self.ncheck == 0:
-                    pbar.update(self.ncheck)
                     if self.print_level > 0:
-                        print(
-                            "{0:2.1f} % completed, Acceptance ratio {1:2.1f} %".format(
-                                float(sample_count) / float(self.nsamples) * 100,
-                                float(naccept) / float(sample_count) * 100,
-                            )
-                        )
+                        print(f"{sample_count} completed, Acceptance ratio {naccept / sample_count * 100:.1f} %")
         return naccept
 
     def consume_random(self, nsamples: int):
@@ -175,7 +165,7 @@ class FullTracer:
         self.data: np.ndarray = np.zeros((nsamples, dim), dtype=float)
 
         if load_existing:
-            self.load_existing(self.search_for_existing())
+            self.load_existing(min(self.nsamples, self.search_for_existing()))
 
     def _file_path(self, start_index: int) -> str:
         file_name = f"tracer_{start_index}_{start_index+self.interval-1}.npy"
@@ -410,7 +400,7 @@ def plot_hist(q, **kwargs):
     mu, std = norm.fit(q)
     x = np.linspace(q.min(), q.max(), 100)
     p = norm.pdf(x, mu, std)
-    plt.plot(x, p, "k", linewidth=1)
+    plt.plot(x, p, **kwargs, linewidth=1)
     plt.title("Histogram")
 
 
@@ -419,4 +409,5 @@ def plot_autocorrelation(q, max_lag=300, **kwargs):
     plt.plot(lags, acorrs, "-", **kwargs)
     plt.title("Autocorrelation")
     plt.ylim([0.0, 1.0])
-    print(f"Autocorrelation, IAT = {IAT:.2f}")
+    # print(f"Autocorrelation, IAT = {IAT:.2f}")
+    return IAT
