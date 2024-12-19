@@ -13,7 +13,7 @@ import numpy as np
 import scipy.sparse.linalg as spla
 import seaborn as sns
 from scipy.stats import norm
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 from .mcmc_diagonstics import integratedAutocorrelationTime
 
@@ -84,19 +84,19 @@ class MCMC:
         # Main sampling
         if self.print_level > 0:
             print(f"Generate {self.nsamples} samples")
-        sample_count = 0
+        tot_naccept = 0
         naccept = 0
-        with tqdm(total=self.nsamples) as pbar:
-            while sample_count < self.nsamples:
-                naccept += self.kernel.sample(current, proposed)
-                q = qoi.eval(current)
-                tracer.append(current, q)
-                sample_count += 1
-                pbar.update()
-                if sample_count % self.ncheck == 0:
-                    if self.print_level > 0:
-                        print(f"{sample_count} completed, Acceptance ratio {naccept / sample_count * 100:.1f} %")
-        return naccept
+        for i in tqdm(range(self.nsamples)):
+            naccept += self.kernel.sample(current, proposed)
+            q = qoi.eval(current)
+            tracer.append(current, q)
+            if (i + 1) % self.ncheck == 0:
+                ar = naccept / self.ncheck
+                tot_naccept += naccept
+                naccept = 0
+                if self.print_level > 0:
+                    print(f"{i+1} completed, Acceptance ratio {ar * 100:.1f} %")
+        return tot_naccept
 
     def resume(self, m0: np.ndarray, resume_index: int, qoi=None, tracer=None):
         assert resume_index > 0
@@ -114,19 +114,23 @@ class MCMC:
         # Main sampling
         if self.print_level > 0:
             print(f"Generate {self.nsamples} samples. Resume from No.{resume_index}")
-        sample_count = 0
+        tot_naccept = 0
         naccept = 0
-        with tqdm(total=self.nsamples, initial=resume_index) as pbar:
-            while resume_index + sample_count < self.nsamples:
-                naccept += self.kernel.sample(current, proposed)
-                q = qoi.eval(current)
-                tracer.append(current, q)
-                sample_count += 1
-                pbar.update()
-                if (resume_index + sample_count) % self.ncheck == 0:
-                    if self.print_level > 0:
-                        print(f"{sample_count} completed, Acceptance ratio {naccept / sample_count * 100:.1f} %")
-        return naccept
+        for i in tqdm(
+            range(resume_index, self.nsamples),
+            total=self.nsamples,
+            initial=resume_index,
+        ):
+            naccept += self.kernel.sample(current, proposed)
+            q = qoi.eval(current)
+            tracer.append(current, q)
+            if (i + 1) % self.ncheck == 0:
+                ar = naccept / self.ncheck
+                tot_naccept += naccept
+                naccept = 0
+                if self.print_level > 0:
+                    print(f"{i+1} completed, Acceptance ratio {ar * 100:.1f} %")
+        return tot_naccept
 
     def consume_random(self, nsamples: int):
         for ii in range(nsamples):
