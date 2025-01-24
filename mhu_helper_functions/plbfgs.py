@@ -29,6 +29,7 @@ def plbfgs(
     inv_hess_options: typ.Dict[str, typ.Any] = dict(),
     line_search_options: typ.Dict[str, typ.Any] = dict(),
     checkpoint_options: typ.Dict[str, typ.Any] = dict(),
+    first_step_size: float = None,
 ) -> LbfgsResult:
     """Computes argmin_x cost(x) via L-BFGS,
     with option for a user-supplied initial inverse Hessian approximation.
@@ -100,6 +101,8 @@ def plbfgs(
     gradnorm_history: typ.List[float] = [gradnorm]
 
     p: VecType = inv_hess.matvec(_neg(g))
+    if first_step_size is not None:
+        p *= first_step_size
     if checkpoint_options:
         np.save(os.path.join(log_path, f"x{iter}.npy"), x)
         np.save(os.path.join(log_path, f"f{iter}.npy"), f)
