@@ -1,34 +1,35 @@
 from __future__ import annotations
 
 import os
-import typing as typ
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Callable, Deque, Iterable, NamedTuple, TypeVar
 
 import numpy as np
 import scipy.optimize._linesearch as ls
-import scipy.sparse.linalg as spla
 from scipy.optimize import line_search
+from scipy.sparse.linalg import LinearOperator
 
-VecType = typ.TypeVar("VecType")
+VecType = TypeVar("VecType")
 
 
 def plbfgs(
-    cost: typ.Callable[[VecType], float],
-    grad: typ.Callable[[VecType], VecType],
+    cost: Callable[[VecType], float],
+    grad: Callable[[VecType], VecType],
     x0: VecType,
     max_vector_pairs_stored: int = 20,
     rtol: float = 1e-6,
     stag_tol: float = 1e-8,
     max_iter: int = 100,
     print_level: int = 1,
-    inv_hess0: typ.Union[spla.LinearOperator, LbfgsInverseHessianApproximation] = None,
+    inv_hess0: LinearOperator | LbfgsInverseHessianApproximation | Callable = None,
+    inv_hess0_update_freq: int = None,
     num_initial_iter: int = 0,  # number of initial iterations before inv_hess0 is used
-    callback: typ.Callable[[VecType], typ.Any] = None,
-    inv_hess_options: typ.Dict[str, typ.Any] = dict(),
-    line_search_options: typ.Dict[str, typ.Any] = dict(),
-    checkpoint_options: typ.Dict[str, typ.Any] = dict(),
+    callback: Callable[[VecType], Any] = None,
+    inv_hess_options: dict[str, Any] = dict(),
+    line_search_options: dict[str, Any] = dict(),
+    checkpoint_options: dict[str, Any] = dict(),
     first_step_size: float = None,
 ) -> LbfgsResult:
     """Computes argmin_x cost(x) via L-BFGS,
@@ -36,7 +37,6 @@ def plbfgs(
 
     checkpoint_options:
         - "path": str
-        - "save_function": Callable[[str, VecType], None]
     """
     # Settings
     if checkpoint_options:
@@ -67,26 +67,23 @@ def plbfgs(
         return last_grad_g
 
     iter: int = 0
-    if (
-        isinstance(inv_hess0, LbfgsInverseHessianApproximation)
-        and iter >= num_initial_iter
+    if iter >= num_initial_iter and isinstance(
+        inv_hess0, LbfgsInverseHessianApproximation
     ):
         inv_hess = inv_hess0
-    elif iter >= num_initial_iter:
-        inv_hess = LbfgsInverseHessianApproximation(
-            max_vector_pairs_stored,
-            deque(),
-            deque(),
-            inv_hess0,
-            print_level=print_level - 1,
-            **inv_hess_options,
-        )
     else:
+        if iter >= num_initial_iter:
+            if isinstance(inv_hess0, LinearOperator):
+                H0 = inv_hess0
+            else:  # Callable
+                H0 = inv_hess0(x0)
+        else:
+            H0 = None
         inv_hess = LbfgsInverseHessianApproximation(
             max_vector_pairs_stored,
             deque(),
             deque(),
-            None,
+            H0,
             print_level=print_level - 1,
             **inv_hess_options,
         )
@@ -97,8 +94,8 @@ def plbfgs(
     g: VecType = __grad_with_counter(x)
     gradnorm: float = _norm(g)
 
-    cost_history: typ.List[float] = [f]
-    gradnorm_history: typ.List[float] = [gradnorm]
+    cost_history: list[float] = [f]
+    gradnorm_history: list[float] = [gradnorm]
 
     p: VecType = inv_hess.matvec(_neg(g))
     if first_step_size is not None:
@@ -125,9 +122,9 @@ def plbfgs(
     )
     step_size: float = line_search_result[0]
 
-    step_size_history: typ.List[float] = [step_size]
-    cost_count_history: typ.List[int] = [num_cost_evals]
-    grad_count_history: typ.List[int] = [num_grad_evals]
+    step_size_history: list[float] = [step_size]
+    cost_count_history: list[int] = [num_cost_evals]
+    grad_count_history: list[int] = [num_grad_evals]
 
     def __display_iter_info():
         if print_level > 0:
@@ -162,19 +159,6 @@ def plbfgs(
 
         # One step forward
         iter += 1
-        if iter == num_initial_iter:
-            if isinstance(inv_hess0, LbfgsInverseHessianApproximation):
-                inv_hess = inv_hess0
-            else:
-                inv_hess = LbfgsInverseHessianApproximation(
-                    max_vector_pairs_stored,
-                    deque(),
-                    deque(),
-                    inv_hess0,
-                    print_level=print_level - 1,
-                    **inv_hess_options,
-                )
-
         x_old = x
         f_old = f
         g_old = g
@@ -207,9 +191,21 @@ def plbfgs(
             break
 
         # Update inv_hess
+        if iter == num_initial_iter:
+            if isinstance(inv_hess0, LbfgsInverseHessianApproximation):
+                inv_hess = inv_hess0
+            else:
+                if isinstance(inv_hess0, LinearOperator):
+                    inv_hess.inv_hess0 = inv_hess0
+                else:
+                    inv_hess.inv_hess0 = inv_hess0(x)
+
         inv_hess.add_new_s_y_pair(
             _sub(x, x_old), _sub(g, g_old)
         )  # s = x - x_old, y = g - g_old
+
+        if inv_hess0_update_freq and (iter % inv_hess0_update_freq == 0):
+            inv_hess.inv_hess0 = inv_hess0(x)
 
         # Compute p and line search step
         p = inv_hess.matvec(_neg(g))
@@ -265,7 +261,7 @@ class LbfgsTerminationReason(Enum):
     LINESEARCH_FAILED = 3
 
 
-class LbfgsResult(typ.NamedTuple):
+class LbfgsResult(NamedTuple):
     x: VecType  # solution
     cost: float  # cost(x)
     grad: VecType  # grad f(x)
@@ -273,14 +269,14 @@ class LbfgsResult(typ.NamedTuple):
     iter: int
     num_cost_evals: int
     num_grad_evals: int
-    cost_history: typ.List[float]  # [cost(x0), cost(x1), ..., cost(x)]
-    gradnorm_history: typ.List[float]  # [grad(x0), grad(x1), ..., grad(x)]
-    step_size_history: typ.List[
+    cost_history: list[float]  # [cost(x0), cost(x1), ..., cost(x)]
+    gradnorm_history: list[float]  # [grad(x0), grad(x1), ..., grad(x)]
+    step_size_history: list[
         float
     ]  # [a0, a1, ...], where x1 = x0 + a0*p, x2 = x1 + a1*p, ...
     termination_reason: LbfgsTerminationReason
-    cost_count_history: typ.List[int]
-    grad_count_history: typ.List[int]
+    cost_count_history: list[int]
+    grad_count_history: list[int]
 
 
 @dataclass
@@ -288,17 +284,17 @@ class LbfgsInverseHessianApproximation:
     """See Nocedal and Wright page 177-179."""
 
     m: int  # max vector pairs stored
-    ss: typ.Deque[
+    ss: Deque[
         VecType
     ]  # GETS MODIFIED! ss=[s_(k-1), s_(k-2), ..., s_(k-m)], s_i = x_(i+1) - x_i. Eq 7.18, left, on page 177
-    yy: typ.Deque[
+    yy: Deque[
         VecType
     ]  # GETS MODIFIED! yy=[y_(k-1), y_(k-2), ..., y_(k-m)], y_i = grad f_(i+1) - grad f_i. Eq 7.18, right, on page 177
-    inv_hess0: typ.Callable[[VecType], VecType] = (
+    inv_hess0: Callable[[VecType], VecType] = (
         None  # Initial inverse Hessian approximation
     )
     print_level: int = 1
-    high_pass_filter: spla.LinearOperator = None
+    high_pass_filter: LinearOperator = None
     gamma_type: int = 2
     initial_gamma: float = 1.0
 
@@ -389,7 +385,7 @@ class LbfgsInverseHessianApproximation:
 
 
 def _is_container(x):
-    return isinstance(x, typ.Iterable) and (not isinstance(x, np.ndarray))
+    return isinstance(x, Iterable) and (not isinstance(x, np.ndarray))
 
 
 def _inner_product(x, y) -> float:
