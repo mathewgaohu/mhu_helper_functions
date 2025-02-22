@@ -23,7 +23,7 @@ def plbfgs(
     stag_tol: float = 1e-8,
     max_iter: int = 100,
     print_level: int = 1,
-    inv_hess0: LinearOperator | LbfgsInverseHessianApproximation | Callable = None,
+    inv_hess0: LinearOperator | Callable | LbfgsInverseHessianApproximation = None,
     inv_hess0_update_freq: int = None,
     num_initial_iter: int = 0,  # number of initial iterations before inv_hess0 is used
     callback: Callable[[VecType], Any] = None,
@@ -72,7 +72,7 @@ def plbfgs(
     ):
         inv_hess = inv_hess0
     else:
-        if iter >= num_initial_iter:
+        if iter >= num_initial_iter and inv_hess0:
             if isinstance(inv_hess0, LinearOperator):
                 H0 = inv_hess0
             else:  # Callable
@@ -191,7 +191,7 @@ def plbfgs(
             break
 
         # Update inv_hess
-        if iter == num_initial_iter:
+        if iter == num_initial_iter and inv_hess0:
             if isinstance(inv_hess0, LbfgsInverseHessianApproximation):
                 inv_hess = inv_hess0
             else:
