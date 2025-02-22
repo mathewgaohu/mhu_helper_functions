@@ -26,22 +26,24 @@ class BilaplacianPrior:
         self.mean = mean
         assert self.mean.shape == (nx * ny,)
 
-        Ix = sp.identity(nx)
+        Ix = sp.eye(nx)
         D2x = (
             sp.diags(
                 [np.ones(nx - 1), -2.0 * np.ones(nx), np.ones(nx - 1)],
                 [-1, 0, 1],
             )
             / dx**2
-        )
-        Iy = sp.identity(ny)
+        ).tocsr()
+        D2x[0, 0] = D2x[-1, -1] = -1.0 / dx**2  # Neumann boundary condition
+        Iy = sp.eye(ny)
         D2y = (
             sp.diags(
                 [np.ones(ny - 1), -2.0 * np.ones(ny), np.ones(ny - 1)],
                 [-1, 0, 1],
             )
             / dy**2
-        )
+        ).tocsr()
+        D2y[0, 0] = D2y[-1, -1] = -1.0 / dy**2  # Neumann boundary condition
         I = sp.identity(nx * ny)
         D2 = sp.kron(D2x, Iy) + sp.kron(Ix, D2y)  # stiffness matrix
         self.Rh: sp.csr_matrix = delta * I - gamma * D2
