@@ -11,6 +11,8 @@ import scipy.optimize._linesearch as ls
 from scipy.optimize import line_search
 from scipy.sparse.linalg import LinearOperator
 
+from .wrappers import memoize_with_tol
+
 
 def plbfgs(
     cost: Callable[[np.ndarray], float],
@@ -24,7 +26,7 @@ def plbfgs(
     inv_hess0_update_freq: int = None,
     iters_before_inv_hess0: int = 0,
     callback: Callable[[np.ndarray], Any] = None,
-    checkpoint_dir: dict[str, Any] = dict(),
+    checkpoint_dir: str = None,
     first_step_size: float = None,
     lbfgs_inv_hess_kwargs: dict[str, Any] = dict(),
     line_search_kwargs: dict[str, Any] = dict(),
@@ -45,8 +47,9 @@ def plbfgs(
     grad_count_history: list[int] = []
     step_size_history: list[float] = []
 
-    cost_with_count = FunctionWithCounter(cost)
-    grad_with_count = FunctionWithCounter(grad)
+    cost = memoize_with_tol(1e-15)(cost)
+    grad = memoize_with_tol(1e-15)(grad)
+
     inv_hess = LbfgsInverseHessianApproximation(
         max_vector_pairs_stored,
         deque(),
@@ -61,8 +64,8 @@ def plbfgs(
         print(f"\n---- Iter {iter+1} ----")
 
         # Initialize iteration
-        cost_with_count.count = 0
-        grad_with_count.count = 0
+        cost.ncalls = 0
+        grad.ncalls = 0
 
         # Update preconditioner
         if iter == iters_before_inv_hess0 and inv_hess0:
@@ -82,8 +85,8 @@ def plbfgs(
             inv_hess.inv_hess0 = inv_hess0(x)
 
         # Compute current state
-        f: float = cost_with_count(x)
-        g: np.ndarray = grad_with_count(x)
+        f: float = cost(x)
+        g: np.ndarray = grad(x)
         gnorm: float = np.linalg.norm(g)
         if iter == 0:
             gnorm0 = gnorm
@@ -130,8 +133,8 @@ def plbfgs(
         else:
             old_old_fval = None
         step_size, new_f = _line_search(
-            cost_with_count,
-            grad_with_count,
+            cost,
+            grad,
             x,
             p,
             g,
@@ -140,7 +143,7 @@ def plbfgs(
             **line_search_kwargs,
         )
         print(f"step_size = {step_size:.3e}")
-        print(f"f_count = {cost_with_count.count}, g_count = {grad_with_count.count}")
+        print(f"f_count = {cost.ncalls}, g_count = {grad.ncalls}")
 
         # Update to next point
         if step_size:
@@ -155,8 +158,8 @@ def plbfgs(
             break
 
         # Record
-        cost_count_history.append(cost_with_count.count)
-        grad_count_history.append(grad_with_count.count)
+        cost_count_history.append(cost.ncalls)
+        grad_count_history.append(grad.ncalls)
         step_size_history.append(step_size)
 
     print("\nLBFGS done.")
@@ -330,22 +333,3 @@ def _line_search(cost, grad, x, p, g, f, old_old_fval, **kwargs):
             cost, grad, x, p, g, f, old_old_fval, **kwargs
         )
     return alpha, new_fval
-
-
-class FunctionWithCounter:
-    def __init__(self, func: Callable):
-        self.func = func
-        self.last_x = None
-        self.last_out = None
-        self.count = 0
-
-    def __call__(self, x: np.ndarray):
-        if self.last_x is not None:
-            if np.linalg.norm(x - self.last_x) <= 1e-15 * np.max(
-                [np.linalg.norm(x), np.linalg.norm(self.last_x)]
-            ):
-                return self.last_out
-        self.last_x = x.copy()
-        self.last_out = self.func(x)
-        self.count += 1
-        return self.last_out
