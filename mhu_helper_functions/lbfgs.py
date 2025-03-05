@@ -126,12 +126,8 @@ def plbfgs(
             np.save(checkpoint_dir / f"p{iter}.npy", p)
 
         # Line search
-        if iter == 0:
-            if first_step_size is not None:
-                p *= first_step_size
-            old_old_fval = f + gnorm / 2 if inv_hess.inv_hess0 is None else None
-        else:
-            old_old_fval = None
+        if iter == 0 and first_step_size is not None:
+            p *= first_step_size
         step_size, new_f = _line_search(
             cost,
             grad,
@@ -139,7 +135,7 @@ def plbfgs(
             p,
             g,
             f,
-            old_old_fval,
+            None,
             **line_search_kwargs,
         )
         print(f"step_size = {step_size:.3e}")
