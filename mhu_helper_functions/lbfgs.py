@@ -203,7 +203,8 @@ class LbfgsInverseHessianApproximation:
     inv_hess0: Callable[[np.ndarray], np.ndarray] = (
         None  # Initial inverse Hessian approximation
     )
-    gamma_type: int = 2
+    hess0: Callable[[np.ndarray], np.ndarray] = None  # Initial Hessian approximation
+    gamma_type: int = 0
 
     def __post_init__(self) -> None:
         assert self.m >= 0
@@ -222,25 +223,33 @@ class LbfgsInverseHessianApproximation:
         if len(self.yy) > self.m:
             self.yy.pop()
 
-    def apply_inv_hess0_k(self, x: np.ndarray) -> np.ndarray:
-        if self.inv_hess0 is not None:
-            if self.ss:
-                gamma_k = _inner_product(self.ss[0], self.yy[0]) / _inner_product(
-                    self.yy[0], self.inv_hess0 * self.yy[0]
-                )
+    def compute_gamma_k(self) -> float:
+        if self.ss:
+            s, y = self.ss[0], self.yy[0]
+            if self.inv_hess0 is not None:
+                if self.gamma_type == 0:
+                    gamma_k = (s @ y) / (y @ (self.inv_hess0 @ y))
+                elif self.gamma_type == 1:
+                    assert self.hess0 is not None
+                    gamma_k = (y @ (self.hess0 @ s)) / (y @ y)
+                elif self.gamma_type == 2:
+                    assert self.hess0 is not None
+                    gamma_k = (s @ (self.hess0 @ s)) / (s @ y)
+                else:
+                    raise ValueError("gamma_type:", self.gamma_type)
             else:
-                gamma_k = 1.0
-            print("gamma_k =", gamma_k)
-            return _componentwise_scalar_mult(self.inv_hess0 * x, gamma_k)
+                gamma_k = (s @ y) / (y @ y)
         else:
-            if self.ss:
-                gamma_k = _inner_product(self.ss[0], self.yy[0]) / _inner_product(
-                    self.yy[0], self.yy[0]
-                )  # <s_(k-1), y_(k-1)> / <y_(k-1), y_(k-1)>
-            else:
-                gamma_k = 1.0
-            print("gamma_k =", gamma_k)
-            return _componentwise_scalar_mult(x, gamma_k)  # H0_k = gamma_k*I
+            gamma_k = 1.0
+        print("gamma_k =", gamma_k)
+        return gamma_k
+
+    def apply_inv_hess0_k(self, x: np.ndarray) -> np.ndarray:
+        gamma_k = self.compute_gamma_k()
+        if self.inv_hess0 is not None:
+            return gamma_k * (self.inv_hess0 @ x)  # H0_k = gamma_k*P
+        else:
+            return gamma_k * x  # H0_k = gamma_k*I
 
     def matvec(self, q: np.ndarray) -> np.ndarray:
         """Computes
