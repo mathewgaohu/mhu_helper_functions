@@ -24,6 +24,7 @@ def plbfgs(
     max_iter: int = 100,
     inv_hess0: LinearOperator | Callable = None,
     inv_hess0_update_freq: int = None,
+    hess0: LinearOperator | Callable = None,
     iters_before_inv_hess0: int = 0,
     callback: Callable[[np.ndarray], Any] = None,
     checkpoint_dir: str = None,
@@ -72,8 +73,10 @@ def plbfgs(
             print("Start using preconditioner")
             if isinstance(inv_hess0, LinearOperator):
                 inv_hess.inv_hess0 = inv_hess0
+                inv_hess.hess0 = hess0
             elif isinstance(inv_hess0, Callable):
                 inv_hess.inv_hess0 = inv_hess0(x)
+                inv_hess.hess0 = hess0(x)
             else:
                 raise ValueError(type(inv_hess0))
         if (
@@ -83,6 +86,7 @@ def plbfgs(
         ):
             print("Update preconditioner")
             inv_hess.inv_hess0 = inv_hess0(x)
+            inv_hess.hess0 = hess0(x)
 
         # Compute current state
         f: float = cost(x)
