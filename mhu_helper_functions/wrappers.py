@@ -1,4 +1,5 @@
 import functools
+from typing import Callable
 
 import numpy as np
 
@@ -66,3 +67,27 @@ def memoize_with_tol(tol=1e-15):
         return wrapper
 
     return decorator
+
+
+class FunctionWithMemory:
+    def __init__(self, func: Callable, tol: float = 1e-15):
+        self.func = func
+        self.tol = tol
+        self.last_x: np.ndarray = None
+        self.last_out = None
+        self.count: int = 0
+
+    def __call__(self, x: np.ndarray):
+        if self.last_x is not None:
+            if l2norm(x - self.last_x) <= self.tol * np.max(
+                [l2norm(x), l2norm(self.last_x)]
+            ):
+                return self.last_out
+        self.last_x = x.copy()
+        self.last_out = self.func(x)
+        self.count += 1
+        return self.last_out
+
+
+def l2norm(x: np.ndarray) -> float:
+    return np.sqrt(np.sum(x * x))
