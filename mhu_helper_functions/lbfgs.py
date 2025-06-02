@@ -61,15 +61,15 @@ def plbfgs(
 
     x = x0.copy()
 
-    for iter in range(max_iter):
-        print(f"\n---- Iter {iter+1} ----")
+    for it in range(max_iter):
+        print(f"\n---- Iter {it+1} ----")
 
         # Initialize iteration
         cost.ncalls = 0
         grad.ncalls = 0
 
         # Update preconditioner
-        if iter == iters_before_inv_hess0 and inv_hess0:
+        if it == iters_before_inv_hess0 and inv_hess0:
             print("Start using preconditioner")
             if isinstance(inv_hess0, LinearOperator):
                 inv_hess.inv_hess0 = inv_hess0
@@ -81,8 +81,8 @@ def plbfgs(
                 raise ValueError(type(inv_hess0))
         if (
             inv_hess0_update_freq
-            and iter > iters_before_inv_hess0
-            and (iter - iters_before_inv_hess0) % inv_hess0_update_freq == 0
+            and it > iters_before_inv_hess0
+            and (it - iters_before_inv_hess0) % inv_hess0_update_freq == 0
         ):
             print("Update preconditioner")
             inv_hess.inv_hess0 = inv_hess0(x)
@@ -92,7 +92,7 @@ def plbfgs(
         f: float = cost(x)
         g: np.ndarray = grad(x)
         gnorm: float = np.linalg.norm(g)
-        if iter == 0:
+        if it == 0:
             gnorm0 = gnorm
 
         print(f"f = {f:.3e}, |g| = {gnorm:.3e}, |g|/|g0| = {gnorm/gnorm0:.3e}")
@@ -101,9 +101,9 @@ def plbfgs(
         cost_history.append(f)
         gradnorm_history.append(gnorm)
         if checkpoint_dir:
-            np.save(checkpoint_dir / f"x{iter}.npy", x)
-            np.save(checkpoint_dir / f"f{iter}.npy", f)
-            np.save(checkpoint_dir / f"g{iter}.npy", g)
+            np.save(checkpoint_dir / f"x{it}.npy", x)
+            np.save(checkpoint_dir / f"f{it}.npy", f)
+            np.save(checkpoint_dir / f"g{it}.npy", g)
 
         # Whether converged
         if gnorm <= rtol * gnorm0:
@@ -112,14 +112,14 @@ def plbfgs(
             )
             break
 
-        if iter > 0 and (f_old - f) < stag_tol * f_old:
+        if it > 0 and (f_old - f) < stag_tol * f_old:
             termination_reason: LbfgsTerminationReason = (
                 LbfgsTerminationReason.DESCENT_STAGNATED
             )
             break
 
         # Update BFGS inv Hess vec pairs: s = x - x_old, y = g - g_old
-        if iter > 0:
+        if it > 0:
             inv_hess.add_new_s_y_pair(x - x_old, g - g_old)
 
         # Compute update direction
@@ -127,10 +127,10 @@ def plbfgs(
 
         # Save checkpoints
         if checkpoint_dir:
-            np.save(checkpoint_dir / f"p{iter}.npy", p)
+            np.save(checkpoint_dir / f"p{it}.npy", p)
 
         # Line search
-        if iter == 0 and first_step_size is not None:
+        if it == 0 and first_step_size is not None:
             p *= first_step_size
         step_size, new_f = _line_search(
             cost,
@@ -164,7 +164,7 @@ def plbfgs(
 
     print("\nLBFGS done.")
     print("    Termination reason:", termination_reason.name)
-    print("    Iterations:", iter)
+    print("    Iterations:", it)
     print("    Cost evaluations:", sum(cost_count_history))
     print("    Gradient evaluations:", sum(grad_count_history))
     print("    Final cost:", f)
@@ -175,7 +175,7 @@ def plbfgs(
         "termination_reason": termination_reason.name,
         "cost": f,
         "gradnorm": gnorm,
-        "iter": iter,
+        "iter": it,
         "cost_history": cost_history,
         "gradnorm_history": gradnorm_history,
         "num_cost_evals": sum(cost_count_history),
