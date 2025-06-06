@@ -75,8 +75,7 @@ def inexact_newton_cg(
         else:
             P = None
 
-        # tolcg = min(0.5, math.sqrt(gradnorm / gradnorm0))
-        tolcg = min(0.5, gradnorm / gradnorm0)
+        tolcg = min(0.5, np.sqrt(gradnorm / gradnorm0))
         p, info = cg(H, -g, rtol=tolcg, M=P, maxiter=maxcgiter)
         gdx = np.dot(g, p)
 
