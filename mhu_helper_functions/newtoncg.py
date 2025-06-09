@@ -96,9 +96,11 @@ def inexact_newton_cg(
             alpha, f_count, f_val_at_alpha = line_search_armijo(
                 cost_with_count, x, p, g, f
             )
-        else:
+        elif line_search_method == "wolfe":
             ls_result = line_search(cost_with_count, grad_with_count, x, p, g, f)
             alpha = ls_result[0]
+        else:
+            raise ValueError(f"Line search method not supported: {line_search_method}")
         if alpha is None:
             termination_reason = "LINESEARCH_FAILED"
             break
