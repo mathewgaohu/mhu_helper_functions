@@ -24,7 +24,7 @@ def inexact_newton_cg(
     start_precond: int = 0,
     callback: Callable = None,
     checkpoint_path: str = None,
-    line_search_method: str = "arrmijo",
+    line_search_method: str = "armijo",
 ) -> tuple[np.ndarray, dict]:
     if checkpoint_path:
         checkpoint_path = Path(checkpoint_path)
