@@ -1,9 +1,12 @@
+import logging
 from pathlib import Path
 from typing import Callable
 
 import numpy as np
 from scipy.optimize._linesearch import line_search_armijo
 from scipy.sparse.linalg import LinearOperator, cg
+
+logger = logging.getLogger(__name__)
 
 
 def inexact_newton_cg(
@@ -35,28 +38,28 @@ def inexact_newton_cg(
     cost_with_count = FunctionWithCount(cost)
     grad_with_count = FunctionWithCount(grad)
 
-    iter: int = 0
+    it: int = 0
     x = x0.copy()
-    while iter < maxiter:
+    while it < maxiter:
 
         cost_with_count.count = 0
         grad_with_count.count = 0
 
-        if iter > 0:
+        if it > 0:
             f_old = f
 
         f = cost_with_count(x)
         g = grad_with_count(x)
         H = LinearOperatorWithCount(hess(x))
         gradnorm = np.linalg.norm(g)
-        # print(iter, f)
+        # print(it, f)
 
         if checkpoint_path:
-            np.save(checkpoint_path / f"x{iter}.npy", x)
-            np.save(checkpoint_path / f"f{iter}.npy", f)
-            np.save(checkpoint_path / f"g{iter}.npy", g)
+            np.save(checkpoint_path / f"x{it}.npy", x)
+            np.save(checkpoint_path / f"f{it}.npy", f)
+            np.save(checkpoint_path / f"g{it}.npy", g)
 
-        if iter == 0:
+        if it == 0:
             gradnorm0 = gradnorm
 
         if gradnorm <= rtol * gradnorm0:
@@ -64,13 +67,13 @@ def inexact_newton_cg(
             termination_reason = "RTOL_ACHIEVED"
             break
 
-        if iter > 0 and (f_old - f) < stag_tol * f_old:
+        if it > 0 and (f_old - f) < stag_tol * f_old:
             converged = True
-            # print(f"f={f}, f_old={f_old}")
             termination_reason = "DESCENT_STAGNATED"
             break
 
-        if iter >= start_precond and precond_func is not None:
+        if it >= start_precond and precond_func is not None:
+            logger.debug(f"Iter {it}: Create preconditioner.")
             P = precond_func(x)
         else:
             P = None
@@ -85,16 +88,15 @@ def inexact_newton_cg(
             break
 
         if checkpoint_path:
-            np.save(checkpoint_path / f"p{iter}.npy", p)
+            np.save(checkpoint_path / f"p{it}.npy", p)
 
         alpha, f_count, f_val_at_alpha = line_search_armijo(cost_with_count, x, p, g, f)
         if alpha is None:
             termination_reason = "LINESEARCH_FAILED"
             break
 
-        iter += 1
+        it += 1
         x += alpha * p
-        # print(f"a={alpha}, |p|={np.linalg.norm(p)}, |x|={np.linalg.norm(x)}")
         if callback:
             callback(x)
 
@@ -104,12 +106,12 @@ def inexact_newton_cg(
 
         alpha = f"{alpha:.2e}" if alpha else "None"
         print(
-            f"Iter {iter}, cost: {f:.4e}, |g|: {gradnorm:.4e}, cg_tol: {tolcg:.2e}, cg_it: {H.count}, step_size: {alpha}, "
+            f"Iter {it}, cost: {f:.4e}, |g|: {gradnorm:.4e}, cg_tol: {tolcg:.2e}, cg_it: {H.count}, step_size: {alpha}, "
         )
 
     print("Inexact Newton-CG done.")
     print("    Termination reason:", termination_reason)
-    print("    Iterations:", iter)
+    print("    Iterations:", it)
     print("    Cost evaluations:", sum(cost_count_history))
     print("    Gradient evaluations:", sum(grad_count_history))
     print("    Hessian evaluations:", sum(hess_count_history))
@@ -121,7 +123,7 @@ def inexact_newton_cg(
         "termination_reason": termination_reason,
         "cost": f,
         "gradnorm": gradnorm,
-        "iter": iter,
+        "iter": it,
         "cost_history": cost_history,
         "gradnorm_history": gradnorm_history,
         "num_cost_evals": sum(cost_count_history),
