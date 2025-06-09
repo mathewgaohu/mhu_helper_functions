@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Callable
 
 import numpy as np
+from scipy.optimize import line_search
 from scipy.optimize._linesearch import line_search_armijo
 from scipy.sparse.linalg import LinearOperator, cg
 
@@ -23,6 +24,7 @@ def inexact_newton_cg(
     start_precond: int = 0,
     callback: Callable = None,
     checkpoint_path: str = None,
+    line_search_method: str = "arrmijo",
 ) -> tuple[np.ndarray, dict]:
     if checkpoint_path:
         checkpoint_path = Path(checkpoint_path)
@@ -90,7 +92,13 @@ def inexact_newton_cg(
         if checkpoint_path:
             np.save(checkpoint_path / f"p{it}.npy", p)
 
-        alpha, f_count, f_val_at_alpha = line_search_armijo(cost_with_count, x, p, g, f)
+        if line_search_method == "armijo":
+            alpha, f_count, f_val_at_alpha = line_search_armijo(
+                cost_with_count, x, p, g, f
+            )
+        else:
+            ls_result = line_search(cost_with_count, grad_with_count, x, p, g, f)
+            alpha = ls_result[0]
         if alpha is None:
             termination_reason = "LINESEARCH_FAILED"
             break
