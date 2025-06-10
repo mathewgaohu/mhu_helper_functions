@@ -141,7 +141,7 @@ def inexact_newton_cg(
         "num_hess_evals": sum(hess_count_history),
         "cost_count_history": cost_count_history,
         "grad_count_history": grad_count_history,
-        "hess_conut_history": hess_count_history,
+        "hess_count_history": hess_count_history,
     }
     return x, info
 
